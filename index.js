@@ -1,12 +1,12 @@
 const proxy = require('ip-proxy-pool');
 const axios = require('axios');
-const { fork } = require('child_process');
 const { promisify } = require('util');
 const _ = require('lodash');
 const path = require('path');
 const writeFile = promisify(require('fs').writeFile);
 const stat = promisify(require('fs').stat);
 const timeout = promisify(setTimeout);
+const execAsync = promisify(require('child_process').exec);
 const m3u8ToMp4 = require('m3u8-to-mp4');
 const converter = new m3u8ToMp4();
 
@@ -39,7 +39,24 @@ const get = async (url, { disableProxy }) => {
     return ret;
 };
 
-getData = async (url, type) => {
+const downloadMP4 = async url => {
+    try {
+        const baseUrl = url.split('/').reverse().slice(1).reverse().join('/');
+        const name = baseUrl.split('/').reverse()[0];
+        // mkdir
+        await execAsync(`cd ${path.resolve(__dirname, './mp4')} && mkdir ${name}`).catch(() => {});
+        // download m3u8
+        await axios.get(url, { responsetype: 'arraybuffer' }).then(async data => {
+            if (data.data) {
+                await writeFile(path.resolve(__dirname, `./mp4/${name}/index.m3u8`), data.data, 'buffer');
+            }
+        });
+    } catch (e) {
+        console.log(e);
+    }
+};
+
+const getData = async (url, type) => {
     try {
         const ret = await get(url, { disableProxy: true });
         if (ret.data.code === 0) {
@@ -64,16 +81,16 @@ getData = async (url, type) => {
                             );
                         } else if (type === 'mp4') {
                             console.log(`https://www.845430.com${article.data.data.mvUrl}`);
-                            await converter
-                                .setInputFile(`https://www.845430.com${article.data.data.mvUrl}`)
-                                .setOutputFile(__dirname + `/mp4/${title}`)
-                                .start()
-                                .then(() => {
-                                    console.log('install success');
-                                })
-                                .catch(e => {
-                                    console.log('install fail', e);
-                                });
+                            // await converter
+                            //     .setInputFile(`https://www.845430.com${article.data.data.mvUrl}`)
+                            //     .setOutputFile(__dirname + `/mp4/${title}`)
+                            //     .start()
+                            //     .then(() => {
+                            //         console.log('install success');
+                            //     })
+                            //     .catch(e => {
+                            //         console.log('install fail', e);
+                            //     });
                         }
                     }
                 }
@@ -91,6 +108,8 @@ getData = async (url, type) => {
     }
     // video
     for (let i = 2; i < 3; i++) {
-        await getData(`https://www.aa4595.com/appapi/h5/index/getRandom/954/${i}`, 'mp4');
+        // await getData(`https://www.aa4595.com/appapi/h5/index/getRandom/954/${i}`, 'mp4');
     }
+
+    downloadMP4('https://www.845430.com/201907/02ff09db/index.m3u8');
 })();
